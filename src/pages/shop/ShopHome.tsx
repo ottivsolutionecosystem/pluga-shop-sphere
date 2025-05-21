@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import HeroSection from '@/components/shop/HeroSection';
 import ProductCarousel from '@/components/shop/ProductCarousel';
@@ -7,21 +7,106 @@ import CategoryMenu from '@/components/shop/CategoryMenu';
 import SearchBar from '@/components/shop/SearchBar';
 import { ProductType } from '@/components/shop/ProductCard';
 import { Button } from '@/components/ui/button';
-
-// Mock products for development
-const mockProducts: ProductType[] = Array.from({ length: 8 }).map((_, i) => ({
-  id: `product-${i + 1}`,
-  name: `Product ${i + 1}`,
-  price: 99.99 + i * 10,
-  image: '/placeholder.svg',
-  storeId: '1',
-  description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-  category: i % 2 === 0 ? 'electronics' : 'clothing',
-  inStock: true
-}));
+import { useStore } from '@/contexts/store';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const ShopHome = () => {
   const { t } = useTranslation();
+  const { currentStore } = useStore();
+  const [featuredProducts, setFeaturedProducts] = useState<ProductType[]>([]);
+  const [newArrivals, setNewArrivals] = useState<ProductType[]>([]);
+  const [bestSellers, setBestSellers] = useState<ProductType[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (!currentStore) return;
+
+      setLoading(true);
+      try {
+        // Featured products
+        const { data: featuredData, error: featuredError } = await supabase
+          .from('products')
+          .select('id, name, price, store_id, slug, description')
+          .eq('store_id', currentStore.id)
+          .eq('is_active', true)
+          .eq('is_featured', true)
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        if (featuredError) throw featuredError;
+
+        // New arrivals
+        const { data: newArrivalsData, error: newArrivalsError } = await supabase
+          .from('products')
+          .select('id, name, price, store_id, slug, description')
+          .eq('store_id', currentStore.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (newArrivalsError) throw newArrivalsError;
+
+        // Best sellers - this would normally be based on sales data
+        // For now, we'll use a random selection of products
+        const { data: bestSellersData, error: bestSellersError } = await supabase
+          .from('products')
+          .select('id, name, price, store_id, slug, description')
+          .eq('store_id', currentStore.id)
+          .eq('is_active', true)
+          .limit(6);
+
+        if (bestSellersError) throw bestSellersError;
+
+        // Get product images
+        const productIds = [
+          ...featuredData.map(p => p.id), 
+          ...newArrivalsData.map(p => p.id),
+          ...bestSellersData.map(p => p.id)
+        ];
+
+        const { data: imagesData, error: imagesError } = await supabase
+          .from('product_images')
+          .select('product_id, url')
+          .in('product_id', productIds)
+          .order('sort_order', { ascending: true });
+
+        if (imagesError) throw imagesError;
+
+        // Create a map of product_id to first image
+        const productImages = new Map();
+        imagesData.forEach(img => {
+          if (!productImages.has(img.product_id)) {
+            productImages.set(img.product_id, img.url);
+          }
+        });
+
+        // Process product data with images
+        const processProducts = (products) => {
+          return products.map(product => ({
+            id: product.id,
+            name: typeof product.name === 'object' ? product.name.en || product.name.pt : product.name,
+            price: product.price,
+            storeId: product.store_id,
+            description: typeof product.description === 'object' ? product.description.en || product.description.pt : product.description,
+            image: productImages.get(product.id) || '/placeholder.svg'
+          }));
+        };
+
+        setFeaturedProducts(processProducts(featuredData));
+        setNewArrivals(processProducts(newArrivalsData));
+        setBestSellers(processProducts(bestSellersData));
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        toast.error('Failed to load products');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [currentStore]);
 
   return (
     <div>
@@ -41,14 +126,14 @@ const ShopHome = () => {
         {/* Featured products carousel */}
         <ProductCarousel 
           title={t('store.featuredProducts')}
-          products={mockProducts.slice(0, 8)}
+          products={featuredProducts}
           viewAllLink="/search?featured=true"
         />
         
         {/* Best sellers carousel */}
         <ProductCarousel 
           title={t('store.bestSellers')}
-          products={mockProducts.slice(0, 6).reverse()}
+          products={bestSellers}
           viewAllLink="/search?bestseller=true"
         />
         
@@ -62,7 +147,7 @@ const ShopHome = () => {
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {mockProducts.slice(0, 5).map((product) => (
+            {newArrivals.map((product) => (
               <div key={product.id} className="animate-fade-in">
                 <a 
                   href={`/product/${product.id}`} 
@@ -80,12 +165,31 @@ const ShopHome = () => {
                       {product.name}
                     </h3>
                     <p className="mt-1 text-shop-primary font-semibold">
-                      ${product.price.toFixed(2)}
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(product.price)}
                     </p>
                   </div>
                 </a>
               </div>
             ))}
+
+            {loading && Array(5).fill(0).map((_, i) => (
+              <div key={`skeleton-${i}`} className="rounded-lg overflow-hidden bg-white border">
+                <div className="aspect-square bg-gray-200 animate-pulse"></div>
+                <div className="p-3">
+                  <div className="h-5 bg-gray-200 rounded-md animate-pulse mb-2"></div>
+                  <div className="h-5 w-24 bg-gray-200 rounded-md animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+
+            {!loading && newArrivals.length === 0 && (
+              <div className="col-span-full py-8 text-center text-muted-foreground">
+                {t('store.noProductsFound')}
+              </div>
+            )}
           </div>
         </div>
       </div>

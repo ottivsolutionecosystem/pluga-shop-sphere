@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   NavigationMenu,
   NavigationMenuContent,
@@ -10,6 +10,8 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { cn } from "@/lib/utils";
+import { useStore } from '@/contexts/store';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Category {
   id: string;
@@ -23,46 +25,90 @@ interface Category {
 }
 
 interface CategoryMenuProps {
-  categories: Category[];
+  categories?: Category[];
 }
 
-// Mock categories for development
-const mockCategories: Category[] = [
-  {
-    id: '1',
-    name: 'Electronics',
-    slug: 'electronics',
-    subcategories: [
-      { id: '101', name: 'Smartphones', slug: 'smartphones' },
-      { id: '102', name: 'Laptops', slug: 'laptops' },
-      { id: '103', name: 'Tablets', slug: 'tablets' },
-      { id: '104', name: 'Accessories', slug: 'electronics-accessories' }
-    ]
-  },
-  {
-    id: '2',
-    name: 'Clothing',
-    slug: 'clothing',
-    subcategories: [
-      { id: '201', name: 'Men', slug: 'men-clothing' },
-      { id: '202', name: 'Women', slug: 'women-clothing' },
-      { id: '203', name: 'Kids', slug: 'kids-clothing' }
-    ]
-  },
-  {
-    id: '3',
-    name: 'Home & Garden',
-    slug: 'home-garden',
-    subcategories: [
-      { id: '301', name: 'Furniture', slug: 'furniture' },
-      { id: '302', name: 'Decor', slug: 'home-decor' },
-      { id: '303', name: 'Kitchen', slug: 'kitchen' },
-      { id: '304', name: 'Garden', slug: 'garden' }
-    ]
-  }
-];
+const CategoryMenu: React.FC<CategoryMenuProps> = ({ categories: propCategories }) => {
+  const { currentStore } = useStore();
+  const [categories, setCategories] = useState<Category[]>(propCategories || []);
+  const [loading, setLoading] = useState<boolean>(false);
 
-const CategoryMenu: React.FC<CategoryMenuProps> = ({ categories = mockCategories }) => {
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!currentStore || propCategories) return;
+      
+      setLoading(true);
+      try {
+        // Fetch parent categories
+        const { data: parentCategories, error: parentError } = await supabase
+          .from('categories')
+          .select('id, name, slug, parent_id')
+          .eq('store_id', currentStore.id)
+          .eq('is_active', true)
+          .is('parent_id', null)
+          .order('sort_order', { ascending: true });
+
+        if (parentError) throw parentError;
+
+        // Fetch all subcategories in a single query
+        const { data: subcategories, error: subError } = await supabase
+          .from('categories')
+          .select('id, name, slug, parent_id')
+          .eq('store_id', currentStore.id)
+          .eq('is_active', true)
+          .not('parent_id', 'is', null)
+          .order('sort_order', { ascending: true });
+
+        if (subError) throw subError;
+
+        // Group subcategories by parent_id
+        const subcategoryMap = subcategories.reduce((acc, sub) => {
+          if (!acc[sub.parent_id]) acc[sub.parent_id] = [];
+          acc[sub.parent_id].push({
+            id: sub.id,
+            name: typeof sub.name === 'object' ? sub.name.en || sub.name.pt : sub.name,
+            slug: sub.slug
+          });
+          return acc;
+        }, {});
+
+        // Build category tree
+        const formattedCategories = parentCategories.map(parent => ({
+          id: parent.id,
+          name: typeof parent.name === 'object' ? parent.name.en || parent.name.pt : parent.name,
+          slug: parent.slug,
+          subcategories: subcategoryMap[parent.id] || []
+        }));
+
+        setCategories(formattedCategories);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, [currentStore, propCategories]);
+
+  if (loading || categories.length === 0) {
+    // Return empty navigation menu while loading or if no categories
+    return (
+      <NavigationMenu>
+        <NavigationMenuList>
+          <NavigationMenuItem>
+            <NavigationMenuLink 
+              className={navigationMenuTriggerStyle()}
+              href="/search"
+            >
+              All Products
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+        </NavigationMenuList>
+      </NavigationMenu>
+    );
+  }
+
   return (
     <NavigationMenu>
       <NavigationMenuList>
