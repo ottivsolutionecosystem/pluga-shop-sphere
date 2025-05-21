@@ -51,6 +51,30 @@ const mockStores = [
       secondaryColor: '#0088cc',
       accentColor: '#00cc88'
     }
+  },
+  {
+    id: '2',
+    name: 'Tech Store',
+    domain: 'techstore.com',
+    subdomain: 'tech',
+    logo: '/logo-tech.png',
+    theme: {
+      primaryColor: '#8800cc',
+      secondaryColor: '#aa44ee',
+      accentColor: '#ff66dd'
+    }
+  },
+  {
+    id: '3',
+    name: 'Fashion Shop',
+    domain: 'fashionshop.com',
+    subdomain: 'fashion',
+    logo: '/logo-fashion.png',
+    theme: {
+      primaryColor: '#cc4400',
+      secondaryColor: '#ee6622',
+      accentColor: '#ff8844'
+    }
   }
 ];
 
@@ -84,11 +108,70 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const detectStore = async () => {
       try {
-        // For development purposes, we'll use a mock store
-        // In production, this would check the hostname and look up the store
-        setCurrentStore(mockStores[0]);
+        setIsLoading(true);
+        
+        // Get the current hostname
+        const hostname = window.location.hostname;
+        console.log('Current hostname:', hostname);
+        
+        // Check if we're running locally
+        const isLocalhost = hostname === 'localhost' || hostname.includes('lovableproject.com');
+        
+        let storeToUse: StoreInfo | null = null;
+        
+        if (isLocalhost) {
+          // For local/preview environments, use the first mock store by default
+          storeToUse = mockStores[0];
+          
+          // Check URL parameters for store simulation (e.g., ?store=tech)
+          const urlParams = new URLSearchParams(window.location.search);
+          const storeParam = urlParams.get('store');
+          
+          if (storeParam) {
+            // Find store by subdomain parameter
+            const foundStore = mockStores.find(
+              store => store.subdomain === storeParam || store.domain.split('.')[0] === storeParam
+            );
+            
+            if (foundStore) {
+              storeToUse = foundStore;
+            }
+          }
+        } else {
+          // Production environment - check for actual domain/subdomain
+          const domainParts = hostname.split('.');
+          
+          // Check for custom domain match first
+          storeToUse = mockStores.find(store => store.domain === hostname);
+          
+          // If no direct domain match, check for subdomain
+          if (!storeToUse && domainParts.length > 2) {
+            const subdomain = domainParts[0];
+            storeToUse = mockStores.find(store => store.subdomain === subdomain);
+          }
+        }
+        
+        // Apply theme variables if store is found
+        if (storeToUse) {
+          document.documentElement.style.setProperty('--shop-primary', storeToUse.theme.primaryColor);
+          document.documentElement.style.setProperty('--shop-secondary', storeToUse.theme.secondaryColor);
+          document.documentElement.style.setProperty('--shop-accent', storeToUse.theme.accentColor);
+          
+          console.log(`Store detected: ${storeToUse.name} (${storeToUse.id})`);
+        } else {
+          console.error('No store found for hostname:', hostname);
+          // Fallback to first store
+          storeToUse = mockStores[0];
+          document.documentElement.style.setProperty('--shop-primary', storeToUse.theme.primaryColor);
+          document.documentElement.style.setProperty('--shop-secondary', storeToUse.theme.secondaryColor);
+          document.documentElement.style.setProperty('--shop-accent', storeToUse.theme.accentColor);
+        }
+        
+        setCurrentStore(storeToUse);
       } catch (error) {
         console.error('Error detecting store:', error);
+        // Fallback to first store
+        setCurrentStore(mockStores[0]);
       } finally {
         setIsLoading(false);
       }

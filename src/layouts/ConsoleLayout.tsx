@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/auth';
 import { 
@@ -47,13 +47,13 @@ const ConsoleLayout = () => {
           <ul className="space-y-1">
             {navigationItems.map((item) => (
               <li key={item.href}>
-                <a 
-                  href={item.href} 
+                <Link 
+                  to={item.href} 
                   className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-100 transition-colors"
                 >
                   <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
@@ -100,13 +100,13 @@ const ConsoleLayout = () => {
                       <ul className="space-y-3">
                         {navigationItems.map((item) => (
                           <li key={item.href}>
-                            <a 
-                              href={item.href} 
+                            <Link 
+                              to={item.href} 
                               className="flex items-center gap-3 py-2"
                             >
                               <item.icon className="h-5 w-5" />
                               <span>{item.label}</span>
-                            </a>
+                            </Link>
                           </li>
                         ))}
                       </ul>
