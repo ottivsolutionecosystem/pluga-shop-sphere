@@ -15,12 +15,14 @@ i18n
       escapeValue: false,
     },
     backend: {
-      loadPath: '/locales/{{lng}}/{{ns}}.json',
+      loadPath: '/locales/{{lng}}/common.json', // Changed from translation.json to common.json
     },
     detection: {
       order: ['querystring', 'cookie', 'localStorage', 'navigator'],
       caches: ['localStorage', 'cookie'],
     },
+    ns: ['common'],
+    defaultNS: 'common',
   });
 
 export default i18n;
