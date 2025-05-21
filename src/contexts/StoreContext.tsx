@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -85,9 +84,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         subdomain: store.subdomain,
         logo: store.logo_url || '/logo-demo.png',
         theme: {
-          primaryColor: store.theme_config.primaryColor || '#0055a5',
-          secondaryColor: store.theme_config.secondaryColor || '#0088cc',
-          accentColor: store.theme_config.accentColor || '#00cc88'
+          primaryColor: typeof store.theme_config === 'object' && store.theme_config ? 
+            (store.theme_config.primaryColor as string) || '#0055a5' : '#0055a5',
+          secondaryColor: typeof store.theme_config === 'object' && store.theme_config ? 
+            (store.theme_config.secondaryColor as string) || '#0088cc' : '#0088cc',
+          accentColor: typeof store.theme_config === 'object' && store.theme_config ? 
+            (store.theme_config.accentColor as string) || '#00cc88' : '#00cc88'
         }
       }));
     } catch (error) {
