@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ShoppingCart, Search, User, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-import { useStore } from '@/contexts/StoreContext';
+import { useStore } from '@/contexts/store';
 import { useAuth } from '@/contexts/auth';
 import { 
   Sheet, 
