@@ -1,5 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 // Store info type
 interface StoreInfo {
@@ -38,46 +40,6 @@ interface StoreContextType {
   clearCart: () => void;
 }
 
-// Mock store data
-const mockStores = [
-  {
-    id: '1',
-    name: 'Loja Demo',
-    domain: 'lojademo.com',
-    subdomain: 'lojademo',
-    logo: '/logo-demo.png',
-    theme: {
-      primaryColor: '#0055a5',
-      secondaryColor: '#0088cc',
-      accentColor: '#00cc88'
-    }
-  },
-  {
-    id: '2',
-    name: 'Tech Store',
-    domain: 'techstore.com',
-    subdomain: 'tech',
-    logo: '/logo-tech.png',
-    theme: {
-      primaryColor: '#8800cc',
-      secondaryColor: '#aa44ee',
-      accentColor: '#ff66dd'
-    }
-  },
-  {
-    id: '3',
-    name: 'Fashion Shop',
-    domain: 'fashionshop.com',
-    subdomain: 'fashion',
-    logo: '/logo-fashion.png',
-    theme: {
-      primaryColor: '#cc4400',
-      secondaryColor: '#ee6622',
-      accentColor: '#ff8844'
-    }
-  }
-];
-
 // Create the context
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
@@ -104,11 +66,51 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('plugashop_cart', JSON.stringify(cart));
   }, [cart]);
 
+  // Fetch stores from Supabase
+  const fetchStores = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('stores')
+        .select('id, name, domain, subdomain, logo_url, theme_config, slug')
+        .eq('is_active', true);
+
+      if (error) {
+        throw error;
+      }
+
+      return data.map((store) => ({
+        id: store.id,
+        name: store.name,
+        domain: store.domain,
+        subdomain: store.subdomain,
+        logo: store.logo_url || '/logo-demo.png',
+        theme: {
+          primaryColor: store.theme_config.primaryColor || '#0055a5',
+          secondaryColor: store.theme_config.secondaryColor || '#0088cc',
+          accentColor: store.theme_config.accentColor || '#00cc88'
+        }
+      }));
+    } catch (error) {
+      console.error('Error fetching stores:', error);
+      toast.error('Failed to load store data');
+      return [];
+    }
+  };
+
   // Determine current store based on hostname/subdomain
   useEffect(() => {
     const detectStore = async () => {
       try {
         setIsLoading(true);
+        
+        // Get all stores from database
+        const stores = await fetchStores();
+        
+        if (stores.length === 0) {
+          console.error('No stores found in the database');
+          setIsLoading(false);
+          return;
+        }
         
         // Get the current hostname
         const hostname = window.location.hostname;
@@ -120,17 +122,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         let storeToUse: StoreInfo | null = null;
         
         if (isLocalhost) {
-          // For local/preview environments, use the first mock store by default
-          storeToUse = mockStores[0];
+          // For local/preview environments, use the first store by default
+          storeToUse = stores[0];
           
           // Check URL parameters for store simulation (e.g., ?store=tech)
           const urlParams = new URLSearchParams(window.location.search);
           const storeParam = urlParams.get('store');
           
           if (storeParam) {
-            // Find store by subdomain parameter
-            const foundStore = mockStores.find(
-              store => store.subdomain === storeParam || store.domain.split('.')[0] === storeParam
+            // Find store by subdomain parameter or slug
+            const foundStore = stores.find(
+              store => store.subdomain === storeParam || store.domain?.split('.')[0] === storeParam
             );
             
             if (foundStore) {
@@ -142,12 +144,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const domainParts = hostname.split('.');
           
           // Check for custom domain match first
-          storeToUse = mockStores.find(store => store.domain === hostname);
+          storeToUse = stores.find(store => store.domain === hostname);
           
           // If no direct domain match, check for subdomain
           if (!storeToUse && domainParts.length > 2) {
             const subdomain = domainParts[0];
-            storeToUse = mockStores.find(store => store.subdomain === subdomain);
+            storeToUse = stores.find(store => store.subdomain === subdomain);
           }
         }
         
@@ -161,7 +163,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } else {
           console.error('No store found for hostname:', hostname);
           // Fallback to first store
-          storeToUse = mockStores[0];
+          storeToUse = stores[0];
           document.documentElement.style.setProperty('--shop-primary', storeToUse.theme.primaryColor);
           document.documentElement.style.setProperty('--shop-secondary', storeToUse.theme.secondaryColor);
           document.documentElement.style.setProperty('--shop-accent', storeToUse.theme.accentColor);
@@ -170,8 +172,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setCurrentStore(storeToUse);
       } catch (error) {
         console.error('Error detecting store:', error);
-        // Fallback to first store
-        setCurrentStore(mockStores[0]);
+        toast.error('Failed to load store configuration');
       } finally {
         setIsLoading(false);
       }
