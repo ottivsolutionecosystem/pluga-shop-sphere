@@ -2,7 +2,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { useStore } from '@/contexts/StoreContext';
+import { useStore } from '@/contexts/store';
 import { ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 

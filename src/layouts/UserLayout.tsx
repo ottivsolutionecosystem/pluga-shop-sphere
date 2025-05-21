@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +18,7 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useStore } from '@/contexts/StoreContext';
+import { useStore } from '@/contexts/store';
 
 const UserLayout = () => {
   const { t } = useTranslation();
