@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useStore } from '@/contexts/store';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 interface Category {
   id: string;
@@ -32,6 +33,26 @@ const CategoryMenu: React.FC<CategoryMenuProps> = ({ categories: propCategories 
   const { currentStore } = useStore();
   const [categories, setCategories] = useState<Category[]>(propCategories || []);
   const [loading, setLoading] = useState<boolean>(false);
+
+  // Helper function to extract name from JSON field
+  const extractName = (nameField: Json | null): string => {
+    if (!nameField) return '';
+    
+    // If nameField is an object with language keys
+    if (typeof nameField === 'object' && nameField !== null && !Array.isArray(nameField)) {
+      // Try to get English or Portuguese name, default to first available key
+      return (nameField as Record<string, string>).en || 
+             (nameField as Record<string, string>).pt || 
+             Object.values(nameField)[0] || '';
+    }
+    
+    // If it's a direct string
+    if (typeof nameField === 'string') {
+      return nameField;
+    }
+    
+    return '';
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -66,7 +87,7 @@ const CategoryMenu: React.FC<CategoryMenuProps> = ({ categories: propCategories 
           if (!acc[sub.parent_id]) acc[sub.parent_id] = [];
           acc[sub.parent_id].push({
             id: sub.id,
-            name: typeof sub.name === 'object' ? sub.name.en || sub.name.pt : sub.name,
+            name: extractName(sub.name),
             slug: sub.slug
           });
           return acc;
@@ -75,7 +96,7 @@ const CategoryMenu: React.FC<CategoryMenuProps> = ({ categories: propCategories 
         // Build category tree
         const formattedCategories = parentCategories.map(parent => ({
           id: parent.id,
-          name: typeof parent.name === 'object' ? parent.name.en || parent.name.pt : parent.name,
+          name: extractName(parent.name),
           slug: parent.slug,
           subcategories: subcategoryMap[parent.id] || []
         }));

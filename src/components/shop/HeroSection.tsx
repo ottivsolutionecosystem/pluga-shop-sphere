@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { useStore } from '@/contexts/store';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 interface HeroSectionProps {
   title?: string;
@@ -24,6 +25,26 @@ const HeroSection = (props: HeroSectionProps) => {
     ctaText: props.ctaText || '',
     ctaLink: props.ctaLink || '/search'
   });
+
+  // Helper function to extract text from JSON field
+  const extractText = (field: Json | null): string => {
+    if (!field) return '';
+    
+    // If field is an object with language keys
+    if (typeof field === 'object' && field !== null && !Array.isArray(field)) {
+      // Try to get English or Portuguese text, default to first available key
+      return (field as Record<string, string>).en || 
+             (field as Record<string, string>).pt || 
+             Object.values(field)[0] || '';
+    }
+    
+    // If it's a direct string
+    if (typeof field === 'string') {
+      return field;
+    }
+    
+    return '';
+  };
   
   useEffect(() => {
     const fetchHeroSection = async () => {
@@ -48,16 +69,26 @@ const HeroSection = (props: HeroSectionProps) => {
         }
 
         if (data) {
-          const content = data.content || {};
-          const title = typeof data.title === 'object' ? data.title.en || data.title.pt : data.title;
-          const subtitle = typeof data.subtitle === 'object' ? data.subtitle.en || data.subtitle.pt : data.subtitle;
+          const title = extractText(data.title);
+          const subtitle = extractText(data.subtitle);
+          let imageUrl = '';
+          let ctaText = '';
+          let ctaLink = '';
+          
+          // Extract content values
+          if (data.content && typeof data.content === 'object' && !Array.isArray(data.content)) {
+            const content = data.content as Record<string, any>;
+            imageUrl = content.imageUrl || heroData.imageUrl;
+            ctaText = content.ctaText || heroData.ctaText;
+            ctaLink = content.ctaLink || heroData.ctaLink;
+          }
           
           setHeroData({
             title: title || heroData.title,
             subtitle: subtitle || heroData.subtitle,
-            imageUrl: content.imageUrl || heroData.imageUrl,
-            ctaText: content.ctaText || heroData.ctaText || t('store.viewMore'),
-            ctaLink: content.ctaLink || heroData.ctaLink
+            imageUrl: imageUrl || heroData.imageUrl,
+            ctaText: ctaText || heroData.ctaText || t('store.viewMore'),
+            ctaLink: ctaLink || heroData.ctaLink
           });
         }
       } catch (error) {
