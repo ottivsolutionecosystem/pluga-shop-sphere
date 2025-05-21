@@ -1,9 +1,9 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from "lucide-react";
+import { cleanupAuthState } from '@/utils/auth';
 
 type UserRole = 'console' | 'admin' | 'user' | 'support' | null;
 
@@ -144,6 +144,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
+      // First clean up any existing auth state
+      cleanupAuthState();
+      
+      // Attempt global sign out in case there's an existing session
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch (err) {
+        // Continue even if this fails
+        console.log('Global sign out failed, continuing with login');
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -207,7 +218,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signOut();
+      
+      // First clean up auth state
+      cleanupAuthState();
+      
+      // Then attempt global sign out
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
       
       if (error) {
         toast({
@@ -217,6 +233,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         throw error;
       }
+      
+      // Force page reload for a clean state
+      window.location.href = '/login';
       
       // Auth state listener will handle updating the user state
     } catch (error) {

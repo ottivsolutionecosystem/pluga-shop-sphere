@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,6 +24,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cleanupAuthState } from '@/utils/auth';
 
 // Define form schema for login
 const loginSchema = z.object({
@@ -46,8 +46,37 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 const Auth = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, login, signup, loading } = useAuth();
+  const location = useLocation();
+  const { user, login, signup, loading, hasRole } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('login');
+  
+  // Parse the returnTo query param to redirect after auth
+  const urlParams = new URLSearchParams(location.search);
+  const returnTo = urlParams.get('returnTo') || '';
+
+  // Redirect if already authenticated based on role
+  useEffect(() => {
+    if (user) {
+      if (returnTo) {
+        navigate(returnTo);
+      } else {
+        redirectUserBasedOnRole();
+      }
+    }
+  }, [user]);
+
+  const redirectUserBasedOnRole = () => {
+    if (hasRole('console')) {
+      navigate('/console');
+    } else if (hasRole('admin') || hasRole('support')) {
+      navigate('/admin');
+    } else if (hasRole('user')) {
+      navigate('/me');
+    } else {
+      // Fallback to homepage if no specific role is found
+      navigate('/');
+    }
+  };
 
   // Create login form
   const loginForm = useForm<LoginFormValues>({
@@ -72,8 +101,11 @@ const Auth = () => {
   // Handle login form submission
   const onLoginSubmit = async (values: LoginFormValues) => {
     try {
+      // Clean up existing auth state
+      cleanupAuthState();
+      
       await login(values.email, values.password);
-      navigate('/');
+      // Redirection handled by useEffect
     } catch (error) {
       console.error('Login error:', error);
     }
@@ -82,6 +114,9 @@ const Auth = () => {
   // Handle signup form submission
   const onSignupSubmit = async (values: SignupFormValues) => {
     try {
+      // Clean up existing auth state
+      cleanupAuthState();
+      
       await signup(
         values.email, 
         values.password, 
@@ -89,7 +124,7 @@ const Auth = () => {
         values.lastName || undefined
       );
       // User will be logged in automatically after signup via auth state change
-      navigate('/');
+      // Redirection handled by useEffect
     } catch (error) {
       console.error('Signup error:', error);
     }

@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,29 +9,57 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { toast } from 'sonner';
+import { cleanupAuthState } from '@/utils/auth';
 
 const Login = () => {
   const { t } = useTranslation();
-  const { login } = useAuth();
+  const { user, login, hasRole } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   // Parse the returnTo query param to redirect after login
-  const urlParams = new URLSearchParams(window.location.search);
-  const returnTo = urlParams.get('returnTo') || '/';
+  const urlParams = new URLSearchParams(location.search);
+  const returnTo = urlParams.get('returnTo') || '';
+
+  // Redirect if already authenticated based on role
+  useEffect(() => {
+    if (user) {
+      if (returnTo) {
+        navigate(returnTo);
+      } else {
+        redirectUserBasedOnRole();
+      }
+    }
+  }, [user]);
+
+  const redirectUserBasedOnRole = () => {
+    if (hasRole('console')) {
+      navigate('/console');
+    } else if (hasRole('admin') || hasRole('support')) {
+      navigate('/admin');
+    } else if (hasRole('user')) {
+      navigate('/me');
+    } else {
+      // Fallback to homepage if no specific role is found
+      navigate('/');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      // Clean up any existing auth state to avoid conflicts
+      cleanupAuthState();
+      
       await login(email, password);
       toast.success('Logged in successfully');
 
-      // Redirect based on user role or the returnTo parameter
-      navigate(returnTo);
+      // Redirection will be handled by the useEffect
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Invalid login credentials');
@@ -138,7 +166,7 @@ const Login = () => {
                 </a>
                 <p className="mt-2">
                   Don't have an account?{" "}
-                  <a href="/signup" className="text-shop-primary hover:underline">
+                  <a href="/auth" className="text-shop-primary hover:underline">
                     {t('auth.signup')}
                   </a>
                 </p>
