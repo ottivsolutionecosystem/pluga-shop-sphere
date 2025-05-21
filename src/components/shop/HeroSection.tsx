@@ -33,9 +33,11 @@ const HeroSection = (props: HeroSectionProps) => {
     // If field is an object with language keys
     if (typeof field === 'object' && field !== null && !Array.isArray(field)) {
       // Try to get English or Portuguese text, default to first available key
-      return (field as Record<string, string>).en || 
-             (field as Record<string, string>).pt || 
-             Object.values(field)[0] || '';
+      const textObj = field as Record<string, string>;
+      return textObj.en || 
+             textObj['pt-BR'] || 
+             textObj.es || 
+             Object.values(textObj)[0] || '';
     }
     
     // If it's a direct string
@@ -78,9 +80,16 @@ const HeroSection = (props: HeroSectionProps) => {
           // Extract content values
           if (data.content && typeof data.content === 'object' && !Array.isArray(data.content)) {
             const content = data.content as Record<string, any>;
-            imageUrl = content.imageUrl || heroData.imageUrl;
-            ctaText = content.ctaText || heroData.ctaText;
-            ctaLink = content.ctaLink || heroData.ctaLink;
+            imageUrl = content.image || content.imageUrl || heroData.imageUrl;
+            
+            // Handle nested buttonText object
+            if (content.buttonText && typeof content.buttonText === 'object') {
+              ctaText = extractText(content.buttonText as Json);
+            } else {
+              ctaText = content.ctaText || content.buttonText || heroData.ctaText;
+            }
+            
+            ctaLink = content.ctaLink || content.buttonLink || heroData.ctaLink;
           }
           
           setHeroData({

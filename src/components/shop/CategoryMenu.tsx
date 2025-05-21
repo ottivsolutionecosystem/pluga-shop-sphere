@@ -41,9 +41,11 @@ const CategoryMenu: React.FC<CategoryMenuProps> = ({ categories: propCategories 
     // If nameField is an object with language keys
     if (typeof nameField === 'object' && nameField !== null && !Array.isArray(nameField)) {
       // Try to get English or Portuguese name, default to first available key
-      return (nameField as Record<string, string>).en || 
-             (nameField as Record<string, string>).pt || 
-             Object.values(nameField)[0] || '';
+      const nameObj = nameField as Record<string, string>;
+      return nameObj.en || 
+             nameObj['pt-BR'] || 
+             nameObj.es || 
+             Object.values(nameObj)[0] || '';
     }
     
     // If it's a direct string
