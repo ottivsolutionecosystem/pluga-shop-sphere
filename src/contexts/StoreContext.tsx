@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -77,21 +78,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw error;
       }
 
-      return data.map((store) => ({
-        id: store.id,
-        name: store.name,
-        domain: store.domain,
-        subdomain: store.subdomain,
-        logo: store.logo_url || '/logo-demo.png',
-        theme: {
-          primaryColor: typeof store.theme_config === 'object' && store.theme_config ? 
-            (store.theme_config.primaryColor as string) || '#0055a5' : '#0055a5',
-          secondaryColor: typeof store.theme_config === 'object' && store.theme_config ? 
-            (store.theme_config.secondaryColor as string) || '#0088cc' : '#0088cc',
-          accentColor: typeof store.theme_config === 'object' && store.theme_config ? 
-            (store.theme_config.accentColor as string) || '#00cc88' : '#00cc88'
+      return data.map((store) => {
+        // Safely extract theme values from theme_config
+        let primaryColor = '#0055a5';
+        let secondaryColor = '#0088cc';
+        let accentColor = '#00cc88';
+
+        if (store.theme_config && typeof store.theme_config === 'object') {
+          // Extract theme colors with fallbacks
+          primaryColor = (store.theme_config as any)?.primaryColor || primaryColor;
+          secondaryColor = (store.theme_config as any)?.secondaryColor || secondaryColor;
+          accentColor = (store.theme_config as any)?.accentColor || accentColor;
         }
-      }));
+
+        return {
+          id: store.id,
+          name: store.name,
+          domain: store.domain,
+          subdomain: store.subdomain,
+          logo: store.logo_url || '/logo-demo.png',
+          theme: {
+            primaryColor,
+            secondaryColor,
+            accentColor
+          }
+        };
+      });
     } catch (error) {
       console.error('Error fetching stores:', error);
       toast.error('Failed to load store data');
@@ -145,13 +157,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           // Production environment - check for actual domain/subdomain
           const domainParts = hostname.split('.');
           
-          // Check for custom domain match first
-          storeToUse = stores.find(store => store.domain === hostname);
-          
-          // If no direct domain match, check for subdomain
-          if (!storeToUse && domainParts.length > 2) {
+          // Check if this is a subdomain (e.g., fashion.plugashop.com)
+          if (domainParts.length > 2) {
             const subdomain = domainParts[0];
             storeToUse = stores.find(store => store.subdomain === subdomain);
+            console.log(`Looking for subdomain: ${subdomain}`, storeToUse);
+          }
+          
+          // If no subdomain match, check for custom domain match
+          if (!storeToUse) {
+            storeToUse = stores.find(store => store.domain === hostname);
+            console.log(`Looking for domain: ${hostname}`, storeToUse);
           }
         }
         
