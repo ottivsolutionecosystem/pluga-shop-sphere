@@ -1,90 +1,203 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
+import { useToast } from '@/hooks/use-toast';
+import { Spinner } from "lucide-react";
 
 type UserRole = 'console' | 'admin' | 'user' | 'support' | null;
 
-interface User {
+interface Profile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email?: string;
+}
+
+interface AuthUser {
   id: string;
   email: string;
   roles: UserRole[];
   name: string;
+  profile?: Profile;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
+  session: Session | null;
 }
-
-// Mock user data for development
-const mockUsers = [
-  {
-    id: '1',
-    email: 'console@plugashop.com',
-    password: 'password',
-    roles: ['console'] as UserRole[],
-    name: 'Console Admin'
-  },
-  {
-    id: '2',
-    email: 'admin@loja.com',
-    password: 'password',
-    roles: ['admin'] as UserRole[],
-    name: 'Loja Admin'
-  },
-  {
-    id: '3',
-    email: 'user@example.com',
-    password: 'password',
-    roles: ['user'] as UserRole[],
-    name: 'Cliente'
-  }
-];
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Check for existing session on mount
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const storedUser = localStorage.getItem('plugashop_user');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-      } finally {
-        setLoading(false);
+  // Helper function to fetch user roles from the database
+  const fetchUserRoles = async (userId: string) => {
+    try {
+      const { data: roles, error } = await supabase
+        .from('user_roles')
+        .select('role, store_id')
+        .eq('user_id', userId);
+      
+      if (error) {
+        console.error('Error fetching user roles:', error);
+        return [];
       }
-    };
 
-    checkSession();
+      return roles.map(r => r.role) as UserRole[];
+    } catch (error) {
+      console.error('Error in fetchUserRoles:', error);
+      return [];
+    }
+  };
+
+  // Helper function to fetch user profile from the database
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+
+      return profile;
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+      return null;
+    }
+  };
+
+  // Helper to create AuthUser object from Supabase User and additional data
+  const createAuthUser = async (supabaseUser: User): Promise<AuthUser | null> => {
+    try {
+      const roles = await fetchUserRoles(supabaseUser.id);
+      const profile = await fetchUserProfile(supabaseUser.id);
+      
+      return {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        roles: roles,
+        name: profile?.first_name 
+          ? `${profile.first_name} ${profile.last_name || ''}`
+          : supabaseUser.email?.split('@')[0] || 'User',
+        profile: profile || undefined
+      };
+    } catch (error) {
+      console.error('Error creating auth user:', error);
+      return null;
+    }
+  };
+
+  // Set up auth state change listener
+  useEffect(() => {
+    setLoading(true);
+    
+    // Set up listener for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        setSession(currentSession);
+        
+        if (currentSession?.user) {
+          // Use setTimeout to prevent blocking the auth state change handler
+          setTimeout(async () => {
+            const authUser = await createAuthUser(currentSession.user);
+            setUser(authUser);
+            setLoading(false);
+          }, 0);
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    // Initial session check
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      
+      if (currentSession?.user) {
+        const authUser = await createAuthUser(currentSession.user);
+        setUser(authUser);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // This would be replaced with actual Supabase auth
-      const foundUser = mockUsers.find(u => u.email === email && u.password === password);
-      
-      if (!foundUser) {
-        throw new Error('Invalid credentials');
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
       }
-      
-      const { password: _, ...userWithoutPassword } = foundUser;
-      
-      // Store user in localStorage - this would be handled by Supabase auth in production
-      localStorage.setItem('plugashop_user', JSON.stringify(userWithoutPassword));
-      setUser(userWithoutPassword);
-      
-    } catch (error) {
+
+      // Auth state listener will handle updating the user state
+    } catch (error: any) {
       console.error('Login error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signup = async (email: string, password: string, firstName?: string, lastName?: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+          },
+        },
+      });
+
+      if (error) {
+        toast({
+          title: "Signup failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+
+      toast({
+        title: "Account created",
+        description: "Your account has been created successfully.",
+      });
+      
+      // Auth state listener will handle updating the user state
+    } catch (error: any) {
+      console.error('Signup error:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -93,10 +206,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      localStorage.removeItem('plugashop_user');
-      setUser(null);
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        toast({
+          title: "Logout failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+      
+      // Auth state listener will handle updating the user state
     } catch (error) {
       console.error('Logout error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,12 +231,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user.roles.includes(role);
   };
 
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center">
+        <Spinner className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   const value = {
     user,
     loading,
     login,
+    signup,
     logout,
-    hasRole
+    hasRole,
+    session
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -15,7 +15,7 @@ import UserLayout from "./layouts/UserLayout";
 
 // Pages
 import ShopHome from "./pages/shop/ShopHome";
-import Login from "./pages/auth/Login";
+import Auth from "./pages/auth/Auth";
 import ConsoleDashboard from "./pages/console/ConsoleDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UserDashboard from "./pages/user/UserDashboard";
@@ -42,8 +42,7 @@ const App = () => (
               </Route>
               
               {/* Authentication Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Login />} /> {/* Reusing Login for now */}
+              <Route path="/auth" element={<Auth />} />
               
               {/* Console Routes */}
               <Route path="/console" element={<ConsoleLayout />}>
