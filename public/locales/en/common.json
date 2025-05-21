@@ -1,0 +1,36 @@
+
+{
+  "app": {
+    "name": "PlugaShop"
+  },
+  "nav": {
+    "home": "Home",
+    "search": "Search",
+    "categories": "Categories",
+    "cart": "Cart",
+    "account": "My Account"
+  },
+  "auth": {
+    "login": "Login",
+    "signup": "Sign Up",
+    "logout": "Logout"
+  },
+  "store": {
+    "featuredProducts": "Featured Products",
+    "bestSellers": "Best Sellers",
+    "newArrivals": "New Arrivals",
+    "viewMore": "View More",
+    "addToCart": "Add to Cart",
+    "buyNow": "Buy Now",
+    "outOfStock": "Out of Stock"
+  },
+  "search": {
+    "placeholder": "What are you looking for?",
+    "noResults": "No results found",
+    "filters": "Filters",
+    "price": "Price",
+    "category": "Category",
+    "sortBy": "Sort by",
+    "apply": "Apply"
+  }
+}
